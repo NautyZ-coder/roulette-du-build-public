@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>La Roulette du Build</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* Système repris de ressources.bricechekhab.com : papier, filets fins, accent clay,
+     washes lilas/bleu, et le trio Bricolage Grotesque / Hanken Grotesk / JetBrains Mono. */
+  :root{
+    --paper:#f9f9f8;
+    --surface:#fff;
+    --ink:#171619;
+    --mute:#454250;
+    --faint:#625e6c;
+    --line:#dedbdd;
+    --line-strong:#cfccd2;
+    --clay:#4a2d63;
+    --clay-deep:#2f2036;
+    --lilac:#e9e2f7;
+    --lilac-line:#d8cfe8;
+    --lilac-ink:#4a2d63;
+    --blue:#e3ecfa;
+    --blue-line:#c5d8f3;
+    --blue-ink:#2a4d7a;
+    --rose:#f7e6ea;
+    --rose-line:#eecdd5;
+    --rose-ink:#8a4453;
+    --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+    --body:"Hanken Grotesk",ui-sans-serif,system-ui,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --ease:cubic-bezier(.22,1,.36,1);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--body);
+    font-size:16px;line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* le lavis lilas en tête de page, comme sur les ressources */
+  body::before{
+    content:"";position:fixed;inset:0 0 auto;height:280px;z-index:0;pointer-events:none;
+    background:linear-gradient(180deg,var(--lilac) 0%,rgba(233,226,247,.45) 42%,transparent 100%);
+  }
+  a{color:inherit}
+  button{font:inherit;color:inherit;cursor:pointer}
+  :focus-visible{outline:2px solid var(--clay);outline-offset:2px}
+
+  .stage{
+    width:min(100%,560px);margin:0 auto;
+    padding:34px 20px 44px;
+    display:flex;flex-direction:column;gap:22px;
+    min-height:100vh;position:relative;z-index:1;
+  }
+  body.shoot .stage{
+    width:min(100vw,calc(100vh * 9 / 16));
+    min-height:100vh;padding:26px 20px 24px;justify-content:flex-start;
+  }
+
+  /* ---------- en-tête ---------- */
+  header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+  .brand{
+    font-family:var(--display);font-weight:800;
+    font-size:clamp(28px,7.6vw,38px);letter-spacing:-.035em;line-height:1.02;
+    margin:0;text-wrap:balance;
+  }
+  .brand small{
+    display:block;font-family:var(--body);font-weight:400;
+    font-size:14.5px;line-height:1.5;letter-spacing:0;text-transform:none;
+    color:var(--mute);margin-top:10px;max-width:34ch;
+  }
+  .ep{
+    font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--faint);text-align:right;white-space:nowrap;padding-top:6px;
+  }
+  .ep b{display:block;font-size:26px;font-weight:400;letter-spacing:-.02em;color:var(--ink);margin-top:4px}
+
+  /* ---------- les rouleaux ---------- */
+  .board{display:flex;flex-direction:column;gap:10px;counter-reset:reel}
+  .reel{
+    position:relative;counter-increment:reel;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:14px;
+    overflow:hidden;isolation:isolate;
+    transition:border-color .25s;
+  }
+  .reel.landed{border-color:var(--line-strong)}
+  .reel .label{
+    position:absolute;left:18px;top:14px;z-index:3;
+    font-family:var(--mono);font-size:9.5px;font-weight:400;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--faint);display:flex;align-items:center;gap:7px;
+  }
+  .reel .label::before{content:counter(reel,decimal-leading-zero) " ·";color:var(--line-strong)}
+  .reel .label i{width:5px;height:5px;border-radius:50%;background:var(--line-strong);display:inline-block;transition:background .3s}
+  .reel.spinning .label i{background:var(--clay);animation:blink .4s infinite alternate}
+  .reel.landed .label i,.reel.locked .label i{background:var(--clay)}
+  @keyframes blink{to{opacity:.2}}
+
+  .window{height:104px;position:relative}
+  .strip{position:absolute;left:0;right:0;top:0;will-change:transform}
+  .item{
+    height:104px;display:flex;align-items:center;
+    padding:34px 18px 10px;
+    font-family:var(--display);font-weight:800;
+    font-size:clamp(22px,5.9vw,30px);line-height:1.06;letter-spacing:-.035em;
+    color:var(--ink);text-wrap:balance;
+  }
+  /* 03 — la contrainte : une annotation, pas un titre */
+  .reel.small .window,.reel.small .item{height:78px}
+  .reel.small .item{
+    font-family:var(--body);font-weight:600;
+    font-size:clamp(16px,4.3vw,20px);letter-spacing:-.005em;line-height:1.3;
+    padding-top:36px;color:var(--clay);
+  }
+  /* 04 — le temps : le verdict, traité comme les chiffres clés du site */
+  .reel:nth-child(4){background:var(--blue);border-color:var(--blue-line)}
+  .reel:nth-child(4) .window,.reel:nth-child(4) .item{height:96px}
+  .reel:nth-child(4) .item{
+    font-family:var(--mono);font-weight:400;
+    font-size:clamp(30px,8vw,40px);letter-spacing:-.03em;
+    color:var(--blue-ink);padding-top:34px;
+  }
+  .reel:nth-child(4) .label,.reel:nth-child(4) .label::before{color:rgba(42,77,122,.55)}
+  .reel:nth-child(4) .label i{background:rgba(42,77,122,.35)}
+  .reel:nth-child(4).spinning .label i,.reel:nth-child(4).landed .label i{background:var(--blue-ink)}
+
+  /* le voile qui coupe les crans voisins : il doit se fondre dans la carte */
+  .reel .shade{
+    position:absolute;inset:0;z-index:2;pointer-events:none;
+    background:linear-gradient(var(--surface) 0%, transparent 26%, transparent 84%, var(--surface) 100%);
+  }
+  .reel:nth-child(4) .shade{background:linear-gradient(var(--blue) 0%, transparent 26%, transparent 84%, var(--blue) 100%)}
+  .reel.spinning .item{filter:blur(.5px)}
+  .reel.landed .window{animation:land .5s cubic-bezier(.2,1.4,.4,1)}
+  @keyframes land{0%{transform:translateY(0)}35%{transform:translateY(-4px)}100%{transform:translateY(0)}}
+  .reel.flash::after{content:"";position:absolute;inset:0;z-index:4;background:var(--lilac);opacity:0;animation:flash .5s ease-out;pointer-events:none}
+  @keyframes flash{0%{opacity:.85}100%{opacity:0}}
+
+  .lock{
+    position:absolute;right:12px;top:10px;z-index:4;
+    background:transparent;border:1px solid var(--line);border-radius:999px;
+    padding:5px 11px;font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--faint);opacity:.55;transition:opacity .2s,border-color .2s,color .2s,background .2s;
+  }
+  .lock:hover,.lock:focus-visible{opacity:1;border-color:var(--line-strong);color:var(--ink)}
+  .reel.locked .lock{opacity:1;background:var(--clay);border-color:var(--clay);color:#fff}
+  .reel.locked{border-color:var(--clay)}
+
+  /* ---------- action ---------- */
+  .cta{
+    display:block;width:100%;
+    background:var(--clay);color:#fff;
+    border:0;border-radius:12px;padding:17px 20px 15px;
+    font-family:var(--body);font-weight:600;font-size:17px;letter-spacing:-.01em;
+    transition:background .2s,transform .12s;
+  }
+  .cta:hover{background:var(--clay-deep)}
+  .cta:active,.cta.pressed{transform:translateY(1px)}
+  .cta[disabled]{opacity:.65;cursor:wait}
+  .cta span{
+    display:block;font-family:var(--mono);font-size:9.5px;font-weight:400;
+    letter-spacing:.16em;text-transform:uppercase;opacity:.62;margin-top:7px;
+  }
+
+  /* ---------- brief ---------- */
+  .brief{
+    background:var(--lilac);border:1px solid var(--lilac-line);
+    border-radius:14px;padding:20px 20px 16px;
+    display:none;opacity:0;transform:translateY(10px);
+    transition:transform .5s var(--ease),opacity .4s;
+  }
+  .brief.show{display:block}
+  .brief.in{transform:none;opacity:1}
+  .brief .eyebrow{
+    font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--lilac-ink);margin:0 0 12px;
+  }
+  .brief p.text{margin:0;font-size:17px;line-height:1.55;color:var(--ink)}
+  .brief p.text b{font-family:var(--display);font-weight:800;letter-spacing:-.02em;color:var(--clay)}
+  .brief .meta{
+    display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+    margin-top:18px;padding-top:14px;border-top:1px solid var(--lilac-line);
+  }
+  .chip{
+    font-family:var(--mono);font-size:10px;letter-spacing:.04em;
+    border:1px solid var(--lilac-line);border-radius:999px;padding:5px 11px;color:var(--mute);
+  }
+  .brief .actions{display:flex;gap:8px;margin-left:auto}
+  .brief .actions button{
+    background:var(--ink);color:#fff;border:1px solid var(--ink);border-radius:999px;
+    padding:8px 15px;font-size:13px;font-weight:600;transition:background .2s,color .2s;
+  }
+  .brief .actions button:hover{background:var(--clay);border-color:var(--clay)}
+  .brief .actions button.ghost{background:var(--surface);color:var(--ink);border-color:var(--lilac-line)}
+  .brief .actions button.ghost:hover{background:var(--surface);color:var(--clay);border-color:var(--clay)}
+
+  /* ---------- pied ---------- */
+  footer{
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    margin-top:auto;padding-top:18px;border-top:1px solid var(--line);
+  }
+  .hist{
+    display:flex;gap:6px;flex-wrap:wrap;align-items:center;
+    font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);
+  }
+  .hist button{
+    background:var(--surface);border:1px solid var(--line);color:var(--mute);
+    border-radius:999px;padding:5px 10px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;
+    text-transform:none;transition:border-color .2s,color .2s;
+  }
+  .hist button:hover{border-color:var(--clay);color:var(--clay)}
+  .toggle{
+    margin-left:auto;background:var(--surface);border:1px solid var(--line);color:var(--mute);
+    border-radius:999px;padding:7px 13px;font-family:var(--mono);font-size:9.5px;
+    letter-spacing:.14em;text-transform:uppercase;transition:all .2s;
+  }
+  .toggle:hover{border-color:var(--line-strong);color:var(--ink)}
+  .toggle[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+
+  .toast{
+    position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);
+    background:var(--ink);color:#fff;border-radius:999px;padding:10px 18px;
+    font-family:var(--mono);font-size:11px;letter-spacing:.04em;
+    opacity:0;pointer-events:none;transition:all .3s var(--ease);z-index:20;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  /* ---------- mode 9:16 : cadre de tournage, tout tient sans scroll ---------- */
+  body.shoot .stage{gap:16px}
+  body.shoot .brand{font-size:clamp(25px,5.8vw,31px)}
+  body.shoot .brand small{font-size:13.5px;margin-top:8px}
+  body.shoot .window,body.shoot .item{height:96px}
+  body.shoot .item{padding-top:32px;font-size:clamp(21px,5.3vw,27px)}
+  body.shoot .reel.small .window,body.shoot .reel.small .item{height:70px}
+  body.shoot .reel.small .item{padding-top:34px;font-size:clamp(15px,3.9vw,18px)}
+  body.shoot .reel:nth-child(4) .window,body.shoot .reel:nth-child(4) .item{height:86px}
+  body.shoot .reel:nth-child(4) .item{padding-top:32px;font-size:clamp(27px,7vw,35px)}
+  body.shoot .cta{padding:15px 18px 13px;font-size:16px}
+  body.shoot .brief{padding:17px 17px 13px}
+  body.shoot .brief p.text{font-size:16px}
+  body.shoot footer{padding-top:14px}
+
+  /* ---------- entrée ---------- */
+  @keyframes rise{0%{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+  header,.board,.cta,footer{animation:.7s var(--ease) backwards rise}
+  .board{animation-delay:80ms}
+  .cta{animation-delay:160ms}
+  footer{animation-delay:240ms}
+
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.01ms !important;animation-iteration-count:1 !important}
+    .brief{transition:none}
+    .strip{transition:none !important}
+  }
+</style>
+</head>
+<body>
+
+<div class="stage" id="stage">
+  <header>
+    <h1 class="brand">La Roulette du Build<small>Le hasard donne le brief. L’outil, je le choisis.</small></h1>
+    <div class="ep">Épisode<b id="epNum">—</b></div>
+  </header>
+
+  <div class="board" id="board"></div>
+
+  <button class="cta" id="spin">Tirer au sort<span>Métier · Problème · Contrainte · Temps</span></button>
+
+  <section class="brief" id="brief" aria-live="polite">
+    <p class="eyebrow">Le brief du jour</p>
+    <p class="text" id="briefText"></p>
+    <div class="meta">
+      <span class="chip" id="seedChip">seed —</span>
+      <span class="chip" id="timeChip">60 min</span>
+      <div class="actions">
+        <button class="ghost" id="share">Lien</button>
+        <button id="copy">Copier le brief</button>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="hist" id="hist"></div>
+    <button class="toggle" id="reelMode" aria-pressed="false">Format 9:16</button>
+  </footer>
+</div>
+<div class="toast" id="toast">Copié</div>
+
+<script>
+(function(){
+  // ---------- data ----------
+  const REELS = [
+    { key:'metier', label:'Métier', article:true, items:[
+      ['un restaurant','m'],['un cabinet comptable','m'],['une agence immo','f'],['un plombier','m'],['un salon de coiffure','m'],
+      ['un dentiste','m'],['une auto-école','f'],['une boulangerie','f'],['une agence de voyage','f'],['un garage auto','m'],
+      ['un fleuriste','m'],['un cabinet d’avocats','m'],['une salle de sport','f'],['un photographe','m'],['un architecte','m'],
+      ['une cave à vin','f'],['une boutique en ligne','f'],['une chambre d’hôtes','f'],['une école de musique','f'],['un traiteur','m'],
+      ['un courtier en assurance','m'],['un vétérinaire','m'],['une agence de com','f'],['un cabinet de recrutement','m'],['un coach sportif','m'],
+      ['un magasin de vélos','m'],['une pharmacie','f'],['un menuisier','m'],['une wedding planner','f'],['un food truck','m'],
+      ['une crèche privée','f'],['un opticien','m'],['une agence de nettoyage','f'],['un studio de yoga','m'],['un camping','m']
+    ]},
+    // Problèmes volontairement universels : ils existent dans TOUTE TPE.
+    // C'est ce qui garantit qu'aucun tirage n'est injouable, sans matrice de compatibilité.
+    { key:'probleme', label:'Problème', items:[
+      'relancer les devis sans réponse','trier les mails entrants','répondre aux avis Google','répondre aux demandes hors horaires','générer les factures',
+      'onboarder un nouveau client','poster sur les réseaux chaque jour','suivre les impayés','qualifier les demandes entrantes','résumer les appels clients',
+      'gérer les annulations de dernière minute','répondre aux 20 mêmes questions','préparer le planning de la semaine','collecter des témoignages','réveiller les anciens clients',
+      'surveiller la concurrence','garder une trace des échanges clients','envoyer la newsletter du mois','répondre aux DM Instagram','centraliser les demandes WhatsApp',
+      'faire signer un contrat','préparer le reporting mensuel'
+    ]},
+    { key:'twist', label:'Contrainte', small:true, items:[
+      'sans écrire une ligne de code','sans base de données','avec 3 prompts maximum','en une seule page','sans aucun abonnement payant',
+      'utilisable par quelqu’un de 70 ans','sur mobile uniquement','sans compte à créer','avec une seule intégration','en mode hors-ligne',
+      'expliqué à un enfant de 10 ans','livré avec la doc','uniquement avec des outils gratuits','avec un test automatique'
+    ]},
+    { key:'temps', label:'Temps', items:['30 min','45 min','60 min','90 min'] }
+  ];
+  const REPEAT = 6; // strip cycles
+
+  // ---------- rng ----------
+  function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+  function hashSeed(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
+  function newSeed(){const a='abcdefghjkmnpqrstuvwxyz23456789';let s='';for(let i=0;i<5;i++)s+=a[Math.floor(Math.random()*a.length)];return s}
+
+  // ---------- state ----------
+  const board=document.getElementById('board');
+  const state={ seed:null, idx:[0,0,0,0], locked:[false,false,false,false], spinning:false, ep:0, counter:0 };
+  const reelEls=[];
+
+  REELS.forEach((r,ri)=>{
+    const el=document.createElement('div');
+    el.className='reel'+(r.small?' small':'');
+    el.innerHTML=`<div class="label"><i></i>${r.label}</div>
+      <button class="lock" type="button" aria-pressed="false" title="Garder ce ${r.label.toLowerCase()} au prochain tirage">Garder</button>
+      <div class="window"><div class="strip"></div></div><div class="shade"></div>`;
+    const strip=el.querySelector('.strip');
+    for(let k=0;k<REPEAT;k++) r.items.forEach(it=>{const d=document.createElement('div');d.className='item';d.textContent=Array.isArray(it)?it[0]:it;strip.appendChild(d)});
+    el.querySelector('.lock').addEventListener('click',()=>{
+      if(state.spinning)return;
+      state.locked[ri]=!state.locked[ri];
+      el.classList.toggle('locked',state.locked[ri]);
+      el.querySelector('.lock').setAttribute('aria-pressed',String(state.locked[ri]));
+    });
+    board.appendChild(el);
+    const wh=el.querySelector('.window').getBoundingClientRect().height;
+    reelEls.push({el,strip,h:wh||104,n:r.items.length});
+  });
+
+  function setStrip(ri,idx,cycle,animate,dur){
+    const R=reelEls[ri];
+    const y=-(cycle*R.n+idx)*R.h;
+    R.strip.style.transition=animate?`transform ${dur}ms cubic-bezier(.12,.9,.14,1)`:'none';
+    R.strip.style.transform=`translateY(${y}px)`;
+  }
+
+  // ---------- audio (tiny ticks) ----------
+  let ac=null;
+  function tick(freq,dur,gain){
+    try{
+      ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+      const o=ac.createOscillator(),g=ac.createGain();
+      o.type='square';o.frequency.value=freq;
+      g.gain.setValueAtTime(gain,ac.currentTime);g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+dur);
+      o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+dur);
+    }catch(e){}
+  }
+
+  // ---------- spin ----------
+  const spinBtn=document.getElementById('spin');
+  const brief=document.getElementById('brief');
+
+  function draw(seed){
+    const rng=mulberry32(hashSeed(seed));
+    return REELS.map((r,i)=>state.locked[i]?state.idx[i]:Math.floor(rng()*r.items.length));
+  }
+
+  function spin(seed,fromHistory){
+    if(state.spinning)return;
+    state.spinning=true;
+    spinBtn.disabled=true;spinBtn.classList.add('pressed');
+    brief.classList.remove('in');
+    setTimeout(()=>brief.classList.remove('show'),250);
+
+    state.seed=seed||newSeed();
+    const target=draw(state.seed);
+    const durs=[1700,2500,3300,3900];
+    let done=0;
+
+    reelEls.forEach((R,ri)=>{
+      const el=R.el;
+      el.classList.remove('landed','flash');
+      if(state.locked[ri]){ if(++done===reelEls.length)finish(); return; }
+      // reset to cycle 0 same index, then animate to cycle REPEAT-2 target
+      setStrip(ri,state.idx[ri],0,false);
+      el.classList.add('spinning');
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        setStrip(ri,target[ri],REPEAT-2,true,durs[ri]);
+      }));
+      // ticking sound while spinning
+      let t=0;const iv=setInterval(()=>{t+=90;tick(900+Math.random()*300,.03,.02);if(t>durs[ri]-500)clearInterval(iv)},90);
+      setTimeout(()=>{
+        el.classList.remove('spinning');el.classList.add('landed','flash');
+        tick(ri===3?1320:660+ri*120,.12,.08);
+        state.idx[ri]=target[ri];
+        if(++done===reelEls.length)finish();
+      },durs[ri]);
+    });
+
+    function finish(){
+      state.idx=target;
+      if(!fromHistory){state.counter++;state.ep=state.counter;pushHistory(state.seed)}
+      renderBrief();
+      location.hash='s='+state.seed;
+      state.spinning=false;spinBtn.disabled=false;spinBtn.classList.remove('pressed');
+      spinBtn.firstChild.textContent='Relancer le tirage';
+    }
+  }
+
+  function briefWords(){
+    const m=REELS[0].items[state.idx[0]];
+    return { metier:m[0], probleme:REELS[1].items[state.idx[1]], twist:REELS[2].items[state.idx[2]], temps:REELS[3].items[state.idx[3]] };
+  }
+  function briefPlain(){
+    const w=briefWords();
+    return `Épisode ${state.ep} — La roulette a parlé : pour ${w.metier}, je règle « ${w.probleme} ». Contrainte : ${w.twist}. J'ai ${w.temps}. L'outil, c'est moi qui le choisis. Seed : ${state.seed}`;
+  }
+  function renderBrief(){
+    const w=briefWords();
+    document.getElementById('briefText').innerHTML=`Pour <b>${w.metier}</b>, je règle <b>${w.probleme}</b>. Contrainte&nbsp;: <b>${w.twist}</b>. J’ai <b>${w.temps.replace(' ','\u00A0')}</b>.`;
+    document.getElementById('seedChip').textContent='seed '+state.seed;
+    document.getElementById('timeChip').textContent='⏱ '+w.temps;
+    document.getElementById('epNum').textContent='#'+String(state.ep).padStart(2,'0');
+    brief.classList.add('show');
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{brief.classList.add('in');setTimeout(()=>brief.scrollIntoView({behavior:'smooth',block:'nearest'}),100)}));
+  }
+
+  // ---------- history ----------
+  const histEl=document.getElementById('hist');
+  function loadHist(){try{return JSON.parse(localStorage.getItem('roulette.hist')||'[]')}catch(e){return[]}}
+  function pushHistory(seed){
+    let h=loadHist().filter(x=>x.seed!==seed);
+    h.unshift({seed,ep:state.ep});h=h.slice(0,6);
+    try{localStorage.setItem('roulette.hist',JSON.stringify(h));localStorage.setItem('roulette.ep',String(state.counter))}catch(e){}
+    renderHist();
+  }
+  function renderHist(){
+    const h=loadHist();
+    histEl.innerHTML=h.length?'<span>Tirages&nbsp;:</span>':'';
+    h.forEach(x=>{const b=document.createElement('button');b.textContent='#'+x.ep+' '+x.seed;b.title='Rejouer ce tirage';
+      b.addEventListener('click',()=>{if(state.spinning)return;state.locked=[false,false,false,false];reelEls.forEach(R=>{R.el.classList.remove('locked');R.el.querySelector('.lock').setAttribute('aria-pressed','false')});state.ep=x.ep;spin(x.seed,true)});
+      histEl.appendChild(b)});
+  }
+
+  // ---------- actions ----------
+  const toast=document.getElementById('toast');
+  function say(msg){toast.textContent=msg;toast.classList.add('on');setTimeout(()=>toast.classList.remove('on'),1400)}
+  document.getElementById('copy').addEventListener('click',()=>{
+    navigator.clipboard.writeText(briefPlain()).then(()=>say('Brief copié'),()=>say('Copie impossible ici'));
+  });
+  document.getElementById('share').addEventListener('click',()=>{
+    const url=location.href.split('#')[0]+'#s='+state.seed;
+    navigator.clipboard.writeText(url).then(()=>say('Lien copié'),()=>say(url));
+  });
+  spinBtn.addEventListener('click',()=>spin());
+  document.addEventListener('keydown',e=>{if(e.code==='Space'&&e.target===document.body){e.preventDefault();spin()}});
+
+  const modeBtn=document.getElementById('reelMode');
+  // la hauteur d'un cran vient du CSS : si elle change (bascule 9:16, resize), on remesure
+  // et on repose chaque bande, sinon les rouleaux s'affichent décalés d'un demi-item.
+  function remeasure(){
+    reelEls.forEach((R,ri)=>{
+      const h=R.el.querySelector('.window').getBoundingClientRect().height;
+      if(!h||h===R.h)return;
+      R.h=h; setStrip(ri,state.idx[ri],0,false);
+    });
+  }
+  function setMode(on){document.body.classList.toggle('shoot',on);modeBtn.setAttribute('aria-pressed',String(on));try{localStorage.setItem('roulette.mode',on?'1':'0')}catch(e){}remeasure()}
+  modeBtn.addEventListener('click',()=>setMode(!document.body.classList.contains('shoot')));
+  addEventListener('resize',remeasure);
+
+  // ---------- init ----------
+  try{state.counter=parseInt(localStorage.getItem('roulette.ep')||'0',10)||0}catch(e){}
+  state.ep=state.counter;
+  try{if(localStorage.getItem('roulette.mode')==='1')setMode(true)}catch(e){}
+  renderHist();
+  // resting state: a real draw already on the board so the page never looks empty
+  const initSeed=(location.hash.match(/s=([a-z0-9]+)/)||[])[1]||'demo1';
+  state.idx=draw(initSeed);state.seed=initSeed;
+  reelEls.forEach((R,ri)=>{setStrip(ri,state.idx[ri],1,false);R.el.classList.add('landed')});
+  if(location.hash.includes('s=')){renderBrief();spinBtn.firstChild.textContent='Relancer le tirage'}
+  else{document.getElementById('epNum').textContent=state.ep?'#'+String(state.ep).padStart(2,'0'):'#00'}
+})();
+</script>
+</body>
+</html>
